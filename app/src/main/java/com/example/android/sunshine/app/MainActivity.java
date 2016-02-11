@@ -15,8 +15,10 @@
  */
 package com.example.android.sunshine.app;
 
+import android.content.CursorLoader;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
@@ -29,14 +31,21 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import com.example.android.sunshine.app.data.WeatherContract;
 import com.example.android.sunshine.app.gcm.RegistrationIntentService;
 import com.example.android.sunshine.app.sync.SunshineSyncAdapter;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.DataApi;
+import com.google.android.gms.wearable.DataMap;
+import com.google.android.gms.wearable.PutDataMapRequest;
+import com.google.android.gms.wearable.Wearable;
 
-public class MainActivity extends AppCompatActivity implements ForecastFragment.Callback {
+public class MainActivity extends AppCompatActivity implements ForecastFragment.Callback, GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
 
     private final String LOG_TAG = MainActivity.class.getSimpleName();
     private static final String DETAILFRAGMENT_TAG = "DFTAG";
@@ -45,7 +54,23 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
 
     private boolean mTwoPane;
     private String mLocation;
+    private GoogleApiClient mGoogleApiClient;
 
+    private static final String[] DETAIL_COLUMNS = {
+            WeatherContract.WeatherEntry.TABLE_NAME + "." + WeatherContract.WeatherEntry._ID,
+            WeatherContract.WeatherEntry.COLUMN_DATE,
+            WeatherContract.WeatherEntry.COLUMN_SHORT_DESC,
+            WeatherContract.WeatherEntry.COLUMN_MAX_TEMP,
+            WeatherContract.WeatherEntry.COLUMN_MIN_TEMP,
+            WeatherContract.WeatherEntry.COLUMN_HUMIDITY,
+            WeatherContract.WeatherEntry.COLUMN_PRESSURE,
+            WeatherContract.WeatherEntry.COLUMN_WIND_SPEED,
+            WeatherContract.WeatherEntry.COLUMN_DEGREES,
+            WeatherContract.WeatherEntry.COLUMN_WEATHER_ID,
+            // This works because the WeatherProvider returns location data joined with
+            // weather data, even though they're stored in two different tables.
+            WeatherContract.LocationEntry.COLUMN_LOCATION_SETTING
+    };
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -106,6 +131,12 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
                 Intent intent = new Intent(this, RegistrationIntentService.class);
                 startService(intent);
             }
+            mGoogleApiClient = new GoogleApiClient.Builder(MainActivity.this)
+                    .addApi(Wearable.API)
+                    .addConnectionCallbacks(MainActivity.this)
+                    .addOnConnectionFailedListener(MainActivity.this)
+                    .build();
+
         }
     }
 
@@ -147,6 +178,16 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
                 df.onLocationChanged(location);
             }
             mLocation = location;
+        }
+        mGoogleApiClient.connect();
+
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if(mGoogleApiClient != null){
+            mGoogleApiClient.disconnect();
         }
     }
 
@@ -196,4 +237,64 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
         }
         return true;
     }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        String location = Utility.getPreferredLocation(MainActivity.this);
+        Uri weatherLocation = WeatherContract.WeatherEntry.buildWeatherLocationWithDate(location, System.currentTimeMillis());
+        String sortOrder = WeatherContract.WeatherEntry.COLUMN_DATE + " ASC";
+        Cursor cursor = new CursorLoader(MainActivity.this,weatherLocation,DETAIL_COLUMNS,null,null,sortOrder).loadInBackground();
+        Log.e("sending","data");
+        sendDataToWatch(cursor);
+
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        if(connectionResult.getErrorCode() == ConnectionResult.API_UNAVAILABLE){
+            Toast.makeText(MainActivity.this,getString(R.string.play_services_error),Toast.LENGTH_SHORT).show();
+        }
+    }
+    @Override
+    protected void onStop() {
+        if (mGoogleApiClient != null && mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+        super.onStop();
+    }
+
+    private void sendDataToWatch(Cursor cursor){
+
+        if(cursor != null) {
+            cursor.moveToPosition(0);
+            PutDataMapRequest dataMapRequest = PutDataMapRequest.create("/weather_data");
+            DataMap data = dataMapRequest.getDataMap();
+
+            data.putString("max_temp", Utility.formatTemperature(MainActivity.this, cursor.getDouble(DetailFragment.COL_WEATHER_MAX_TEMP)));
+            data.putString("min_temp", Utility.formatTemperature(MainActivity.this, cursor.getDouble(DetailFragment.COL_WEATHER_MIN_TEMP)));
+            data.putInt("weather_image_id", cursor.getInt(DetailFragment.COL_WEATHER_CONDITION_ID));
+            Wearable.DataApi.putDataItem(mGoogleApiClient, dataMapRequest.asPutDataRequest())
+                    .setResultCallback(new ResultCallback<DataApi.DataItemResult>() {
+                        @Override
+                        public void onResult(DataApi.DataItemResult dataItemResult) {
+                            if (!dataItemResult.getStatus().isSuccess()) {
+                                Log.e("YourApp", "ERROR: failed to putDataItem, status code: "
+                                        + dataItemResult.getStatus().getStatusCode());
+                            } else {
+                                Log.e("YourApp", "Success: putDataItem, status code: "
+                                        + dataItemResult.getStatus().getStatusCode());
+                            }
+                        }
+                    });
+            cursor.close();
+        }
+
+
+    }
+
 }
