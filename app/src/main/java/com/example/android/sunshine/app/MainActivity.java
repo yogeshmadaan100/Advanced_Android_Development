@@ -246,7 +246,6 @@ public class MainActivity extends AppCompatActivity implements ForecastFragment.
         Cursor cursor = new CursorLoader(MainActivity.this,weatherLocation,DETAIL_COLUMNS,null,null,sortOrder).loadInBackground();
         Log.e("sending","data");
         sendDataToWatch(cursor);
-
     }
 
     @Override

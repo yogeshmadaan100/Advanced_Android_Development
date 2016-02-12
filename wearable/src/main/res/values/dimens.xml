@@ -15,4 +15,5 @@
     <dimen name="digital_temp_y_offset">30dp</dimen>
     <dimen name="digital_weather_image_y_offset">18dp</dimen>
     <dimen name="digital_weather_image_x_offset">70dp</dimen>
+
 </resources>

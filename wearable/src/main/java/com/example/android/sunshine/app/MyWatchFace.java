@@ -57,10 +57,6 @@ import java.util.GregorianCalendar;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
- * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
- */
 public class MyWatchFace extends CanvasWatchFaceService {
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
@@ -96,7 +92,6 @@ public class MyWatchFace extends CanvasWatchFaceService {
         private Paint mMaxTempPaint;
         private Paint mMinTempPaint;
         private Paint mSeparatorLine;
-        private Paint mWeatherImage;
         private boolean mAmbient;
         private String mMinTemp = "";
         private String mMaxTemp = "";
@@ -106,7 +101,6 @@ public class MyWatchFace extends CanvasWatchFaceService {
         private float mDateYOffSet;
         private String[] mDaysOfWeek;
         private String[] mMonthsOfYear;
-        private Bitmap mWeatherBitmap = null;
         private int mWeatherImageId = -1;
 
         /**
@@ -131,7 +125,7 @@ public class MyWatchFace extends CanvasWatchFaceService {
 
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.background2));
+            mBackgroundPaint.setColor(resources.getColor(R.color.digital_background));
 
 
             mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
@@ -173,7 +167,6 @@ public class MyWatchFace extends CanvasWatchFaceService {
             return paint;
         }
 
-        // Create a paint using builder pattern
         private Paint createDateTextPaint(int textColor) {
             Paint dataPaint = new Paint();
             dataPaint.setColor(textColor);
@@ -210,12 +203,6 @@ public class MyWatchFace extends CanvasWatchFaceService {
             minTempPaint.setAntiAlias(true);
             minTempPaint.setStrokeWidth(2);
             return minTempPaint;
-        }
-
-        private Paint createWeatherImagePaint(){
-            Paint weatherImagePaint = new Paint();
-            weatherImagePaint.setAntiAlias(true);
-            return weatherImagePaint;
         }
 
         @Override
@@ -257,7 +244,6 @@ public class MyWatchFace extends CanvasWatchFaceService {
         public void onApplyWindowInsets(WindowInsets insets) {
             super.onApplyWindowInsets(insets);
 
-            // Load resources that have alternate values for round watches.
             Resources resources = MyWatchFace.this.getResources();
             boolean isRound = insets.isRound();
 
@@ -324,19 +310,19 @@ public class MyWatchFace extends CanvasWatchFaceService {
                     ,bounds.width() / 2
                     ,mDateYOffSet
                     ,mDateText);
-            canvas.drawLine(bounds.width()/3,bounds.height()/2+10,2*bounds.width()/3,bounds.height()/2+10,mMaxTempPaint);
+            canvas.drawLine(2*bounds.width()/6,bounds.height()/2+20,4*bounds.width()/6,bounds.height()/2+20,mSeparatorLine);
             canvas.drawText(mMaxTemp,bounds.width()/2,
-                    bounds.height()/2+60
+                    bounds.height()/2+75
                     ,mMaxTempPaint);
 
             canvas.drawText(mMinTemp
                     , bounds.width() / 2 + 35
-                    , bounds.height() / 2 + 60
+                    , bounds.height() / 2 + 75
                     , mMinTempPaint);
 
             if(mWeatherImageId != -1){
                 Bitmap icon = BitmapFactory.decodeResource(MyWatchFace.this.getResources()
-                        ,getArtResourceForWeatherCondition(mWeatherImageId));
+                ,getArtResourceForWeatherCondition(mWeatherImageId));
                 Paint paint= new Paint();
                 canvas.drawBitmap(icon, bounds.width() / 2 - MyWatchFace.this.getResources().getDimension(R.dimen.digital_weather_image_x_offset),
                         bounds.height() / 2 + MyWatchFace.this.getResources().getDimension(R.dimen.digital_weather_image_y_offset),
@@ -386,13 +372,13 @@ public class MyWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onConnectionSuspended(int i) {
-            Log.e("Android Wear", "Connection failed");
+            Log.d("Android Wear", "Connection failed");
 
         }
 
         @Override
         public void onConnectionFailed(ConnectionResult connectionResult) {
-            Log.e("Android Wear","Connection failed");
+            Log.d("Android Wear","Connection failed");
 
         }
 
